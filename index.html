@@ -159,7 +159,7 @@ function initGame() {
     mouthAngle: 0,
     mouthDir: 1,
     moving: false,
-    progress: 0,  // 0..1 between cells
+    progress: 0,
     fromX: 10, fromY: 16,
     dead: false,
     deathAnim: 0,
@@ -213,7 +213,6 @@ function updateHUD() {
   livesEl.innerHTML = Array(lives).fill('<span class="life-icon">◖</span>').join('');
 }
 
-// --- Pathfinding helpers ---
 function canMove(x, y) {
   if (x < 0) x = W - 1;
   if (x >= W) x = 0;
@@ -237,13 +236,11 @@ function wrap(x) {
   return x;
 }
 
-// Simple ghost AI: choose direction toward/away from target
 function ghostChooseDir(g) {
   const dirs = [
     { x: 1, y: 0 }, { x: -1, y: 0 },
     { x: 0, y: 1 }, { x: 0, y: -1 }
   ];
-  // Don't reverse
   const opp = { x: -g.dir.x, y: -g.dir.y };
   const valid = dirs.filter(d => {
     if (d.x === opp.x && d.y === opp.y) return false;
@@ -255,13 +252,10 @@ function ghostChooseDir(g) {
 
   let target;
   if (g.eaten) {
-    // Go back to ghost house
     target = { x: 10, y: 10 };
   } else if (g.frightened) {
-    // Random
     return valid[Math.floor(Math.random() * valid.length)];
   } else {
-    // Chase pac-man with personality
     const px = pacman.x, py = pacman.y;
     if (g.name === 'Blinky') target = { x: px, y: py };
     else if (g.name === 'Pinky') {
@@ -274,7 +268,6 @@ function ghostChooseDir(g) {
     }
   }
 
-  // Pick direction closest to target
   valid.sort((a, b) => {
     const da = Math.hypot(wrap(g.x + a.x) - target.x, (g.y + a.y) - target.y);
     const db = Math.hypot(wrap(g.x + b.x) - target.x, (g.y + b.y) - target.y);
@@ -283,7 +276,6 @@ function ghostChooseDir(g) {
   return valid[0];
 }
 
-// Speed in cells/sec
 function pacSpeed() { return 6 + level * 0.5; }
 function ghostSpeed(g) {
   if (g.eaten) return 14;
@@ -339,7 +331,6 @@ function update(dt) {
     return;
   }
 
-  // Fright timer
   if (frightTimer > 0) {
     frightTimer -= dt * 1000;
     if (frightTimer <= 0) {
@@ -348,7 +339,6 @@ function update(dt) {
     }
   }
 
-  // Move pac-man
   const pspd = pacSpeed() * dt;
   pacman.progress += pspd;
   if (pacman.progress >= 1) {
@@ -356,7 +346,6 @@ function update(dt) {
     pacman.fromX = pacman.x;
     pacman.fromY = pacman.y;
 
-    // Try next direction
     const nd = pacman.nextDir;
     const nx = wrap(pacman.x + nd.x);
     const ny = pacman.y + nd.y;
@@ -375,7 +364,6 @@ function update(dt) {
       pacman.progress = 0;
     }
 
-    // Eat dot/power
     const cell = map[pacman.y]?.[pacman.x];
     if (cell === 2) {
       map[pacman.y][pacman.x] = 0;
@@ -392,20 +380,17 @@ function update(dt) {
       updateHUD();
     }
 
-    // Level clear
     if (dotsEaten >= totalDots) {
       levelClearPause = 2;
       return;
     }
   }
 
-  // Mouth animation
   pacman.mouthAngle += dt * 5;
   if (pacman.mouthAngle > 0.4) { pacman.mouthAngle = 0.4; pacman.mouthDir = -1; }
   if (pacman.mouthAngle < 0.02) { pacman.mouthAngle = 0.02; pacman.mouthDir = 1; }
   pacman.mouthAngle += pacman.mouthDir * dt * 4;
 
-  // Move ghosts
   ghosts.forEach(g => {
     if (!g.exited) {
       g.exitDelay -= dt * 1000;
@@ -428,7 +413,6 @@ function update(dt) {
       g.x = wrap(g.x + nd.x);
       g.y = g.y + nd.y;
 
-      // Ghost reached house — revive
       if (g.eaten && g.x === 10 && g.y === 10) {
         g.eaten = false;
         g.frightened = false;
@@ -438,11 +422,9 @@ function update(dt) {
       }
     }
 
-    // Blink near end of fright
     g.blinkPhase = (g.blinkPhase + dt * 8) % 1;
   });
 
-  // Collision
   ghosts.forEach(g => {
     if (!g.exited) return;
     const px = pacman.x + pacman.dir.x * pacman.progress;
@@ -460,7 +442,6 @@ function update(dt) {
           updateHUD();
         }
       } else if (!g.eaten) {
-        // Die
         pacman.dead = true;
         pacman.deathAnim = 0;
         lives--;
@@ -471,11 +452,9 @@ function update(dt) {
   });
 }
 
-// --- Drawing ---
 function draw() {
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-
   drawMaze();
   drawDots();
   if (!pacman.dead || pacman.deathAnim < 1) drawPacman();
@@ -488,7 +467,6 @@ function drawMaze() {
     for (let c = 0; c < W; c++) {
       if (map[r][c] === 1) {
         ctx.fillRect(c * CELL, r * CELL, CELL, CELL);
-        // Inner highlight
         ctx.fillStyle = '#0000cc';
         ctx.fillRect(c * CELL + 2, r * CELL + 2, CELL - 4, CELL - 4);
         ctx.fillStyle = '#1a1aff';
@@ -531,7 +509,6 @@ function drawPacman() {
   else if (pacman.dir.y === 1) angle = Math.PI / 2;
 
   if (pacman.dead) {
-    // Death animation: pac-man closes then disappears
     const da = pacman.deathAnim;
     const startAngle = da * Math.PI;
     ctx.fillStyle = '#ffff00';
@@ -544,7 +521,6 @@ function drawPacman() {
   }
 
   const mouth = pacman.moving ? pacman.mouthAngle : 0.05;
-
   ctx.fillStyle = '#ffff00';
   ctx.beginPath();
   ctx.moveTo(cx, cy);
@@ -552,7 +528,6 @@ function drawPacman() {
   ctx.closePath();
   ctx.fill();
 
-  // Eye
   const ex = cx + Math.cos(angle - Math.PI / 2.5) * r * 0.5;
   const ey = cy + Math.sin(angle - Math.PI / 2.5) * r * 0.5;
   ctx.fillStyle = '#000';
@@ -571,7 +546,6 @@ function drawGhosts() {
     const r = CELL * 0.44;
 
     if (g.eaten) {
-      // Draw eyes only
       drawGhostEyes(cx, cy, r, g.dir);
       return;
     }
@@ -583,14 +557,11 @@ function drawGhosts() {
     }
 
     ctx.fillStyle = color;
-    // Ghost body
     ctx.beginPath();
     ctx.arc(cx, cy - r * 0.1, r, Math.PI, 0);
-    // Wavy bottom
-    const segments = 4;
-    const bx = cx - r;
     const by = cy + r * 0.9;
     ctx.lineTo(cx + r, by);
+    const segments = 4;
     for (let i = 0; i < segments; i++) {
       const x1 = cx + r - (i * 2 + 1) * (2 * r / segments / 2);
       const x2 = cx + r - (i + 1) * (2 * r / segments);
@@ -602,7 +573,6 @@ function drawGhosts() {
     if (!g.frightened) {
       drawGhostEyes(cx, cy, r, g.dir);
     } else {
-      // Scared face
       ctx.fillStyle = '#ffb8ff';
       ctx.fillRect(cx - r * 0.4, cy - r * 0.05, r * 0.15, r * 0.2);
       ctx.fillRect(cx + r * 0.25, cy - r * 0.05, r * 0.15, r * 0.2);
@@ -640,14 +610,16 @@ function drawGhostEyes(cx, cy, r, dir) {
 let touchStart = null;
 
 document.addEventListener('touchstart', e => {
+  if (!gameRunning) return;
   e.preventDefault();
   const t = e.touches[0];
   touchStart = { x: t.clientX, y: t.clientY };
 }, { passive: false });
 
 document.addEventListener('touchend', e => {
+  if (!gameRunning) return;
   e.preventDefault();
-  if (!touchStart || !gameRunning) return;
+  if (!touchStart) return;
   const t = e.changedTouches[0];
   const dx = t.clientX - touchStart.x;
   const dy = t.clientY - touchStart.y;
