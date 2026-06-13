@@ -23,18 +23,13 @@ body {
   display: flex;
   gap: 30px;
   padding: 8px 0;
-  z-index: 10;
 }
 #hud span { color: #ffff00; }
-canvas {
-  display: block;
-  image-rendering: pixelated;
-  touch-action: none;
-}
+canvas { display: block; image-rendering: pixelated; }
 #overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.85);
+  background: rgba(0,0,0,0.88);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -43,7 +38,7 @@ canvas {
   z-index: 20;
 }
 #overlay h1 { font-size: 48px; color: #ffff00; letter-spacing: 4px; margin-bottom: 10px; }
-#overlay p { font-size: 18px; color: #ccc; margin: 6px 0; }
+#overlay p  { font-size: 18px; color: #ccc; margin: 6px 0; }
 #overlay .sub { font-size: 14px; color: #888; margin-top: 16px; }
 #startBtn {
   margin-top: 28px;
@@ -57,13 +52,114 @@ canvas {
   font-family: inherit;
   font-weight: bold;
   letter-spacing: 2px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 #startBtn:active { transform: scale(0.96); }
 #lives-display { display: flex; gap: 6px; align-items: center; }
 .life-icon { color: #ffff00; font-size: 18px; }
+
+/* ===== JOYSTICK ===== */
+#joy-ui {
+  position: fixed;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+#joy-ui.visible { opacity: 1; pointer-events: auto; }
+
+#joy-preset-btns {
+  display: flex;
+  gap: 5px;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+.joy-pb {
+  background: rgba(0,0,0,0.65);
+  border: 1.5px solid rgba(255,255,255,0.22);
+  color: rgba(255,255,255,0.5);
+  border-radius: 5px;
+  padding: 4px 11px;
+  font-size: 12px;
+  font-family: 'Courier New', monospace;
+  cursor: pointer;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.joy-pb.active {
+  border-color: rgba(255,255,0,0.75);
+  color: #ffff00;
+  background: rgba(255,255,0,0.1);
+}
+
+#joy-outer {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.07);
+  border: 2px solid rgba(255,255,255,0.28);
+  position: relative;
+  touch-action: none;
+  box-shadow: 0 4px 22px rgba(0,0,0,0.6), inset 0 0 22px rgba(0,0,0,0.3);
+  flex-shrink: 0;
+}
+#joy-outer.free {
+  border-color: rgba(255,220,0,0.6);
+  background: rgba(255,220,0,0.05);
+}
+
+.jdir {
+  position: absolute;
+  font-size: 9px;
+  color: rgba(255,255,255,0.28);
+  pointer-events: none;
+  transition: color 0.07s;
+}
+.jdir.lit { color: rgba(255,255,0,0.9); text-shadow: 0 0 6px #ffff00; }
+.jd-n { top: 5px;    left: 50%; transform: translateX(-50%); }
+.jd-s { bottom: 5px; left: 50%; transform: translateX(-50%); }
+.jd-e { right: 5px;  top: 50%;  transform: translateY(-50%); }
+.jd-w { left: 5px;   top: 50%;  transform: translateY(-50%); }
+
+#joy-inner {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 32%,
+    rgba(255,255,255,0.95) 0%, rgba(210,215,235,0.75) 100%);
+  box-shadow: 0 3px 10px rgba(0,0,0,0.55), inset 0 1px 4px rgba(255,255,255,0.6);
+  position: absolute;
+  pointer-events: none;
+  will-change: left, top;
+}
+#joy-inner.free {
+  background: radial-gradient(circle at 38% 32%,
+    rgba(255,255,160,0.95) 0%, rgba(200,200,80,0.75) 100%);
+}
+
+#joy-move-hint {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  color: rgba(120,110,0,0.65);
+  pointer-events: none;
+}
+#joy-outer.free #joy-move-hint { display: flex; }
 </style>
 </head>
 <body>
+
 <div id="hud">
   <div>SCORE: <span id="score">0</span></div>
   <div>LEVEL: <span id="level">1</span></div>
@@ -73,28 +169,42 @@ canvas {
 
 <div id="overlay">
   <h1>PAC-MAN</h1>
-  <p>Swipe to move</p>
+  <p>Use the joystick to move</p>
   <p class="sub">Eat all dots &bull; Avoid ghosts</p>
   <p class="sub">Power pellets make ghosts vulnerable!</p>
   <button id="startBtn">TAP TO PLAY</button>
 </div>
 
+<div id="joy-ui">
+  <div id="joy-preset-btns">
+    <button class="joy-pb" id="jpb-l">◀ L</button>
+    <button class="joy-pb" id="jpb-f">✥</button>
+    <button class="joy-pb" id="jpb-r">R ▶</button>
+  </div>
+  <div id="joy-outer">
+    <span class="jdir jd-n">▲</span>
+    <span class="jdir jd-s">▼</span>
+    <span class="jdir jd-e">▶</span>
+    <span class="jdir jd-w">◀</span>
+    <div id="joy-inner"></div>
+    <div id="joy-move-hint">✥</div>
+  </div>
+</div>
+
 <script>
-const canvas = document.getElementById('c');
-const ctx = canvas.getContext('2d');
+const canvas  = document.getElementById('c');
+const ctx     = canvas.getContext('2d');
 const overlay = document.getElementById('overlay');
-const startBtn = document.getElementById('startBtn');
+const startBtn= document.getElementById('startBtn');
 const scoreEl = document.getElementById('score');
 const levelEl = document.getElementById('level');
 const livesEl = document.getElementById('lives-display');
 
-// Responsive sizing
 const CELL = Math.floor(Math.min(window.innerWidth / 21, (window.innerHeight - 60) / 23));
 const W = 21, H = 23;
-canvas.width = W * CELL;
+canvas.width  = W * CELL;
 canvas.height = H * CELL;
 
-// Map: 0=empty, 1=wall, 2=dot, 3=power, 4=ghost-house
 const BASE_MAP = [
   [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
   [1,2,2,2,2,2,2,2,2,2,1,2,2,2,2,2,2,2,2,2,1],
@@ -121,64 +231,46 @@ const BASE_MAP = [
   [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
 ];
 
-// Game state
 let map, pacman, ghosts, score, lives, level, gameRunning, animFrame;
-let frightTimer = 0, frightenedDuration = 7000;
-let levelClearTimer = 0;
-let totalDots = 0;
-let dotsEaten = 0;
-let ghostEatCombo = 0;
+let frightTimer = 0;
+const frightenedDuration = 7000;
+let totalDots = 0, dotsEaten = 0, ghostEatCombo = 0;
+let lastTime = 0, deathPause = 0, levelClearPause = 0;
 
 const GHOST_COLORS = ['#ff0000','#ffb8ff','#00ffff','#ffb852'];
-const GHOST_NAMES = ['Blinky','Pinky','Inky','Clyde'];
+const GHOST_NAMES  = ['Blinky','Pinky','Inky','Clyde'];
 
-function cloneMap() {
-  return BASE_MAP.map(r => [...r]);
-}
-
+function cloneMap() { return BASE_MAP.map(r => [...r]); }
 function countDots(m) {
   let c = 0;
-  for (let r of m) for (let v of r) if (v === 2 || v === 3) c++;
+  for (const r of m) for (const v of r) if (v === 2 || v === 3) c++;
   return c;
 }
 
 function initGame() {
-  map = cloneMap();
+  map       = cloneMap();
   totalDots = countDots(map);
   dotsEaten = 0;
-  score = score || 0;
-  lives = 3;
-  level = 1;
+  score     = score || 0;
+  lives     = 3;
+  level     = 1;
   ghostEatCombo = 0;
-  frightTimer = 0;
+  frightTimer   = 0;
 
   pacman = {
-    x: 10, y: 16,
-    dir: { x: 0, y: 0 },
-    nextDir: { x: 0, y: 0 },
-    mouthAngle: 0,
-    mouthDir: 1,
-    moving: false,
-    progress: 0,  // 0..1 between cells
-    fromX: 10, fromY: 16,
-    dead: false,
-    deathAnim: 0,
+    x: 10, y: 16, fromX: 10, fromY: 16,
+    dir: { x:0, y:0 }, nextDir: { x:0, y:0 },
+    mouthAngle: 0.2, mouthDir: 1, moving: false, progress: 0,
+    dead: false, deathAnim: 0,
   };
 
   ghosts = GHOST_NAMES.map((name, i) => ({
-    name,
-    color: GHOST_COLORS[i],
-    x: 9 + i * 0.5 | 0,
-    y: 10,
-    fromX: 9 + i * 0.5 | 0,
-    fromY: 10,
-    dir: { x: i % 2 === 0 ? 1 : -1, y: 0 },
-    progress: 0,
-    frightened: false,
-    eaten: false,
-    exitDelay: i * 2000,
-    exited: i === 0,
-    blinkPhase: 0,
+    name, color: GHOST_COLORS[i],
+    x: 9 + (i * 0.5 | 0), y: 10,
+    fromX: 9 + (i * 0.5 | 0), fromY: 10,
+    dir: { x: i%2===0 ? 1 : -1, y: 0 },
+    progress: 0, frightened: false, eaten: false,
+    exitDelay: i * 2000, exited: i === 0, blinkPhase: 0,
   }));
 
   updateHUD();
@@ -187,23 +279,14 @@ function initGame() {
 function resetPositions() {
   pacman.x = 10; pacman.y = 16;
   pacman.fromX = 10; pacman.fromY = 16;
-  pacman.dir = { x: 0, y: 0 };
-  pacman.nextDir = { x: 0, y: 0 };
-  pacman.progress = 0;
-  pacman.dead = false;
-  pacman.deathAnim = 0;
-  frightTimer = 0;
-  ghostEatCombo = 0;
-
+  pacman.dir = { x:0, y:0 }; pacman.nextDir = { x:0, y:0 };
+  pacman.progress = 0; pacman.dead = false; pacman.deathAnim = 0;
+  frightTimer = 0; ghostEatCombo = 0;
   ghosts.forEach((g, i) => {
-    g.x = 9 + i; g.y = 10;
-    g.fromX = 9 + i; g.fromY = 10;
-    g.dir = { x: i % 2 === 0 ? 1 : -1, y: 0 };
-    g.progress = 0;
-    g.frightened = false;
-    g.eaten = false;
-    g.exitDelay = i * 2000;
-    g.exited = i === 0;
+    g.x = 9 + i; g.y = 10; g.fromX = 9+i; g.fromY = 10;
+    g.dir = { x: i%2===0 ? 1 : -1, y: 0 };
+    g.progress = 0; g.frightened = false; g.eaten = false;
+    g.exitDelay = i * 2000; g.exited = i === 0;
   });
 }
 
@@ -213,87 +296,58 @@ function updateHUD() {
   livesEl.innerHTML = Array(lives).fill('<span class="life-icon">◖</span>').join('');
 }
 
-// --- Pathfinding helpers ---
 function canMove(x, y) {
-  if (x < 0) x = W - 1;
-  if (x >= W) x = 0;
+  if (x < 0) x = W-1; if (x >= W) x = 0;
   const v = map[y]?.[x];
   return v !== undefined && v !== 1;
 }
-
-function canMoveGhost(x, y, isExited) {
-  if (x < 0) x = W - 1;
-  if (x >= W) x = 0;
+function canMoveGhost(x, y, exited) {
+  if (x < 0) x = W-1; if (x >= W) x = 0;
   const v = map[y]?.[x];
   if (v === undefined || v === 1) return false;
-  if (!isExited && v === 4) return true;
-  if (isExited && v === 4) return false;
+  if (!exited && v === 4) return true;
+  if (exited  && v === 4) return false;
   return true;
 }
+function wrap(x) { return x < 0 ? W-1 : x >= W ? 0 : x; }
 
-function wrap(x) {
-  if (x < 0) return W - 1;
-  if (x >= W) return 0;
-  return x;
-}
-
-// Simple ghost AI: choose direction toward/away from target
 function ghostChooseDir(g) {
-  const dirs = [
-    { x: 1, y: 0 }, { x: -1, y: 0 },
-    { x: 0, y: 1 }, { x: 0, y: -1 }
-  ];
-  // Don't reverse
-  const opp = { x: -g.dir.x, y: -g.dir.y };
+  const dirs = [{x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}];
+  const opp  = { x:-g.dir.x, y:-g.dir.y };
   const valid = dirs.filter(d => {
-    if (d.x === opp.x && d.y === opp.y) return false;
-    const nx = wrap(g.x + d.x);
-    const ny = g.y + d.y;
-    return canMoveGhost(nx, ny, g.exited);
+    if (d.x===opp.x && d.y===opp.y) return false;
+    return canMoveGhost(wrap(g.x+d.x), g.y+d.y, g.exited);
   });
-  if (valid.length === 0) return opp;
+  if (!valid.length) return opp;
 
+  if (g.eaten)     return closest(g, valid, {x:10,y:10});
+  if (g.frightened) return valid[Math.random()*valid.length|0];
+
+  const px = pacman.x, py = pacman.y;
   let target;
-  if (g.eaten) {
-    // Go back to ghost house
-    target = { x: 10, y: 10 };
-  } else if (g.frightened) {
-    // Random
-    return valid[Math.floor(Math.random() * valid.length)];
-  } else {
-    // Chase pac-man with personality
-    const px = pacman.x, py = pacman.y;
-    if (g.name === 'Blinky') target = { x: px, y: py };
-    else if (g.name === 'Pinky') {
-      target = { x: px + pacman.dir.x * 3, y: py + pacman.dir.y * 3 };
-    } else if (g.name === 'Inky') {
-      target = { x: px + (px - g.x), y: py + (py - g.y) };
-    } else {
-      const dist = Math.hypot(px - g.x, py - g.y);
-      target = dist > 8 ? { x: px, y: py } : { x: 1, y: 20 };
-    }
+  if      (g.name==='Blinky') target = {x:px,y:py};
+  else if (g.name==='Pinky')  target = {x:px+pacman.dir.x*3, y:py+pacman.dir.y*3};
+  else if (g.name==='Inky')   target = {x:px+(px-g.x), y:py+(py-g.y)};
+  else {
+    const d = Math.hypot(px-g.x, py-g.y);
+    target = d > 8 ? {x:px,y:py} : {x:1,y:20};
   }
-
-  // Pick direction closest to target
-  valid.sort((a, b) => {
-    const da = Math.hypot(wrap(g.x + a.x) - target.x, (g.y + a.y) - target.y);
-    const db = Math.hypot(wrap(g.x + b.x) - target.x, (g.y + b.y) - target.y);
-    return da - db;
-  });
-  return valid[0];
+  return closest(g, valid, target);
+}
+function closest(g, dirs, target) {
+  return dirs.sort((a,b) => {
+    const da = Math.hypot(wrap(g.x+a.x)-target.x, (g.y+a.y)-target.y);
+    const db = Math.hypot(wrap(g.x+b.x)-target.x, (g.y+b.y)-target.y);
+    return da-db;
+  })[0];
 }
 
-// Speed in cells/sec
-function pacSpeed() { return 6 + level * 0.5; }
-function ghostSpeed(g) {
+function pacSpeed()       { return 6 + level * 0.5; }
+function ghostSpeed(g)    {
   if (g.eaten) return 14;
   if (g.frightened) return 4;
   return 4 + level * 0.4;
 }
-
-let lastTime = 0;
-let deathPause = 0;
-let levelClearPause = 0;
 
 function gameLoop(ts) {
   const dt = Math.min((ts - lastTime) / 1000, 0.05);
@@ -302,30 +356,18 @@ function gameLoop(ts) {
   if (deathPause > 0) {
     deathPause -= dt;
     if (deathPause <= 0) {
-      if (lives <= 0) {
-        showOverlay('GAME OVER', `Score: ${score}`, 'TAP TO PLAY AGAIN');
-        return;
-      }
+      if (lives <= 0) { showOverlay('GAME OVER', `Score: ${score}`, 'TAP TO PLAY AGAIN'); return; }
       resetPositions();
     }
-    draw();
-    animFrame = requestAnimationFrame(gameLoop);
-    return;
+    draw(); animFrame = requestAnimationFrame(gameLoop); return;
   }
-
   if (levelClearPause > 0) {
     levelClearPause -= dt;
     if (levelClearPause <= 0) {
-      level++;
-      map = cloneMap();
-      totalDots = countDots(map);
-      dotsEaten = 0;
-      resetPositions();
-      updateHUD();
+      level++; map = cloneMap(); totalDots = countDots(map);
+      dotsEaten = 0; resetPositions(); updateHUD();
     }
-    draw();
-    animFrame = requestAnimationFrame(gameLoop);
-    return;
+    draw(); animFrame = requestAnimationFrame(gameLoop); return;
   }
 
   update(dt);
@@ -334,12 +376,8 @@ function gameLoop(ts) {
 }
 
 function update(dt) {
-  if (pacman.dead) {
-    pacman.deathAnim = Math.min(1, pacman.deathAnim + dt * 1.5);
-    return;
-  }
+  if (pacman.dead) { pacman.deathAnim = Math.min(1, pacman.deathAnim + dt*1.5); return; }
 
-  // Fright timer
   if (frightTimer > 0) {
     frightTimer -= dt * 1000;
     if (frightTimer <= 0) {
@@ -348,344 +386,381 @@ function update(dt) {
     }
   }
 
-  // Move pac-man
-  const pspd = pacSpeed() * dt;
-  pacman.progress += pspd;
+  // Pac-Man movement
+  pacman.progress += pacSpeed() * dt;
   if (pacman.progress >= 1) {
     pacman.progress -= 1;
-    pacman.fromX = pacman.x;
-    pacman.fromY = pacman.y;
-
-    // Try next direction
+    pacman.fromX = pacman.x; pacman.fromY = pacman.y;
     const nd = pacman.nextDir;
-    const nx = wrap(pacman.x + nd.x);
-    const ny = pacman.y + nd.y;
-    if ((nd.x !== 0 || nd.y !== 0) && canMove(nx, ny)) {
-      pacman.dir = { ...nd };
-    }
+    if ((nd.x||nd.y) && canMove(wrap(pacman.x+nd.x), pacman.y+nd.y))
+      pacman.dir = {...nd};
+    const mx = wrap(pacman.x+pacman.dir.x), my = pacman.y+pacman.dir.y;
+    if (canMove(mx, my)) { pacman.x=mx; pacman.y=my; pacman.moving=true; }
+    else { pacman.moving=false; pacman.progress=0; }
 
-    const mx = wrap(pacman.x + pacman.dir.x);
-    const my = pacman.y + pacman.dir.y;
-    if (canMove(mx, my)) {
-      pacman.x = mx;
-      pacman.y = my;
-      pacman.moving = true;
-    } else {
-      pacman.moving = false;
-      pacman.progress = 0;
-    }
-
-    // Eat dot/power
     const cell = map[pacman.y]?.[pacman.x];
-    if (cell === 2) {
-      map[pacman.y][pacman.x] = 0;
-      score += 10;
-      dotsEaten++;
-      updateHUD();
-    } else if (cell === 3) {
-      map[pacman.y][pacman.x] = 0;
-      score += 50;
-      dotsEaten++;
-      frightTimer = frightenedDuration;
-      ghostEatCombo = 0;
-      ghosts.forEach(g => { if (!g.eaten) { g.frightened = true; } });
+    if (cell===2) { map[pacman.y][pacman.x]=0; score+=10; dotsEaten++; updateHUD(); }
+    else if (cell===3) {
+      map[pacman.y][pacman.x]=0; score+=50; dotsEaten++;
+      frightTimer=frightenedDuration; ghostEatCombo=0;
+      ghosts.forEach(g => { if (!g.eaten) g.frightened=true; });
       updateHUD();
     }
-
-    // Level clear
-    if (dotsEaten >= totalDots) {
-      levelClearPause = 2;
-      return;
-    }
+    if (dotsEaten >= totalDots) { levelClearPause=2; return; }
   }
 
-  // Mouth animation
-  pacman.mouthAngle += dt * 5;
-  if (pacman.mouthAngle > 0.4) { pacman.mouthAngle = 0.4; pacman.mouthDir = -1; }
-  if (pacman.mouthAngle < 0.02) { pacman.mouthAngle = 0.02; pacman.mouthDir = 1; }
+  // Mouth
   pacman.mouthAngle += pacman.mouthDir * dt * 4;
+  if (pacman.mouthAngle > 0.4) { pacman.mouthAngle=0.4; pacman.mouthDir=-1; }
+  if (pacman.mouthAngle < 0.02){ pacman.mouthAngle=0.02; pacman.mouthDir=1; }
 
-  // Move ghosts
+  // Ghosts
   ghosts.forEach(g => {
     if (!g.exited) {
-      g.exitDelay -= dt * 1000;
-      if (g.exitDelay <= 0) {
-        g.exited = true;
-        g.x = 10; g.y = 8;
-        g.fromX = 10; g.fromY = 8;
-      }
+      g.exitDelay -= dt*1000;
+      if (g.exitDelay <= 0) { g.exited=true; g.x=10; g.y=8; g.fromX=10; g.fromY=8; }
       return;
     }
-
-    const gspd = ghostSpeed(g) * dt;
-    g.progress += gspd;
+    g.progress += ghostSpeed(g)*dt;
     if (g.progress >= 1) {
-      g.progress -= 1;
-      g.fromX = g.x;
-      g.fromY = g.y;
-      const nd = ghostChooseDir(g);
-      g.dir = nd;
-      g.x = wrap(g.x + nd.x);
-      g.y = g.y + nd.y;
-
-      // Ghost reached house — revive
-      if (g.eaten && g.x === 10 && g.y === 10) {
-        g.eaten = false;
-        g.frightened = false;
-        g.exited = true;
-        g.x = 10; g.y = 8;
-        g.fromX = 10; g.fromY = 8;
+      g.progress -= 1; g.fromX=g.x; g.fromY=g.y;
+      const nd=ghostChooseDir(g); g.dir=nd;
+      g.x=wrap(g.x+nd.x); g.y+=nd.y;
+      if (g.eaten && g.x===10 && g.y===10) {
+        g.eaten=false; g.frightened=false; g.x=10; g.y=8; g.fromX=10; g.fromY=8;
       }
     }
-
-    // Blink near end of fright
-    g.blinkPhase = (g.blinkPhase + dt * 8) % 1;
+    g.blinkPhase=(g.blinkPhase+dt*8)%1;
   });
 
   // Collision
   ghosts.forEach(g => {
     if (!g.exited) return;
-    const px = pacman.x + pacman.dir.x * pacman.progress;
-    const py = pacman.y + pacman.dir.y * pacman.progress;
-    const gx = g.fromX + (g.x - g.fromX) * g.progress;
-    const gy = g.fromY + (g.y - g.fromY) * g.progress;
-    const dist = Math.hypot(px - gx, py - gy);
-    if (dist < 0.8) {
-      if (g.frightened || g.eaten) {
-        if (!g.eaten) {
-          g.eaten = true;
-          g.frightened = false;
-          ghostEatCombo++;
-          score += 200 * Math.pow(2, ghostEatCombo - 1);
-          updateHUD();
-        }
+    const px=pacman.x+pacman.dir.x*pacman.progress;
+    const py=pacman.y+pacman.dir.y*pacman.progress;
+    const gx=g.fromX+(g.x-g.fromX)*g.progress;
+    const gy=g.fromY+(g.y-g.fromY)*g.progress;
+    if (Math.hypot(px-gx,py-gy)<0.8) {
+      if ((g.frightened||g.eaten) && !g.eaten) {
+        g.eaten=true; g.frightened=false;
+        score+=200*Math.pow(2,ghostEatCombo++); updateHUD();
       } else if (!g.eaten) {
-        // Die
-        pacman.dead = true;
-        pacman.deathAnim = 0;
-        lives--;
-        updateHUD();
-        deathPause = 2.5;
+        pacman.dead=true; pacman.deathAnim=0;
+        lives--; updateHUD(); deathPause=2.5;
       }
     }
   });
 }
 
-// --- Drawing ---
+// ===== DRAWING =====
 function draw() {
-  ctx.fillStyle = '#000';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  drawMaze();
-  drawDots();
-  if (!pacman.dead || pacman.deathAnim < 1) drawPacman();
+  ctx.fillStyle='#000'; ctx.fillRect(0,0,canvas.width,canvas.height);
+  drawMaze(); drawDots();
+  if (!pacman.dead || pacman.deathAnim<1) drawPacman();
   drawGhosts();
 }
 
 function drawMaze() {
-  ctx.fillStyle = '#1a1aff';
-  for (let r = 0; r < H; r++) {
-    for (let c = 0; c < W; c++) {
-      if (map[r][c] === 1) {
-        ctx.fillRect(c * CELL, r * CELL, CELL, CELL);
-        // Inner highlight
-        ctx.fillStyle = '#0000cc';
-        ctx.fillRect(c * CELL + 2, r * CELL + 2, CELL - 4, CELL - 4);
-        ctx.fillStyle = '#1a1aff';
-      }
+  for (let r=0;r<H;r++) for (let c=0;c<W;c++) {
+    if (map[r][c]===1) {
+      ctx.fillStyle='#1a1aff';
+      ctx.fillRect(c*CELL,r*CELL,CELL,CELL);
+      ctx.fillStyle='#0000cc';
+      ctx.fillRect(c*CELL+2,r*CELL+2,CELL-4,CELL-4);
     }
   }
 }
 
 function drawDots() {
-  for (let r = 0; r < H; r++) {
-    for (let c = 0; c < W; c++) {
-      const v = map[r][c];
-      if (v === 2) {
-        ctx.fillStyle = '#ffb8ae';
-        ctx.beginPath();
-        ctx.arc(c * CELL + CELL / 2, r * CELL + CELL / 2, CELL * 0.1, 0, Math.PI * 2);
-        ctx.fill();
-      } else if (v === 3) {
-        const pulse = 0.5 + 0.5 * Math.sin(Date.now() / 200);
-        ctx.fillStyle = '#ffb8ae';
-        ctx.beginPath();
-        ctx.arc(c * CELL + CELL / 2, r * CELL + CELL / 2, CELL * (0.22 + pulse * 0.06), 0, Math.PI * 2);
-        ctx.fill();
-      }
+  for (let r=0;r<H;r++) for (let c=0;c<W;c++) {
+    const v=map[r][c];
+    if (v===2) {
+      ctx.fillStyle='#ffb8ae';
+      ctx.beginPath();
+      ctx.arc(c*CELL+CELL/2,r*CELL+CELL/2,CELL*0.1,0,Math.PI*2);
+      ctx.fill();
+    } else if (v===3) {
+      const p=0.5+0.5*Math.sin(Date.now()/200);
+      ctx.fillStyle='#ffb8ae';
+      ctx.beginPath();
+      ctx.arc(c*CELL+CELL/2,r*CELL+CELL/2,CELL*(0.22+p*0.06),0,Math.PI*2);
+      ctx.fill();
     }
   }
 }
 
 function drawPacman() {
-  const px = pacman.fromX + (pacman.x - pacman.fromX) * pacman.progress;
-  const py = pacman.fromY + (pacman.y - pacman.fromY) * pacman.progress;
-  const cx = px * CELL + CELL / 2;
-  const cy = py * CELL + CELL / 2;
-  const r = CELL * 0.45;
-
-  let angle = 0;
-  if (pacman.dir.x === 1) angle = 0;
-  else if (pacman.dir.x === -1) angle = Math.PI;
-  else if (pacman.dir.y === -1) angle = -Math.PI / 2;
-  else if (pacman.dir.y === 1) angle = Math.PI / 2;
+  const px=pacman.fromX+(pacman.x-pacman.fromX)*pacman.progress;
+  const py=pacman.fromY+(pacman.y-pacman.fromY)*pacman.progress;
+  const cx=px*CELL+CELL/2, cy=py*CELL+CELL/2, r=CELL*0.45;
+  let angle=0;
+  if (pacman.dir.x===1)  angle=0;
+  if (pacman.dir.x===-1) angle=Math.PI;
+  if (pacman.dir.y===-1) angle=-Math.PI/2;
+  if (pacman.dir.y===1)  angle=Math.PI/2;
 
   if (pacman.dead) {
-    // Death animation: pac-man closes then disappears
-    const da = pacman.deathAnim;
-    const startAngle = da * Math.PI;
-    ctx.fillStyle = '#ffff00';
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.arc(cx, cy, r * (1 - da * 0.5), startAngle, Math.PI * 2 - startAngle);
-    ctx.closePath();
-    ctx.fill();
-    return;
+    const da=pacman.deathAnim, sa=da*Math.PI;
+    ctx.fillStyle='#ffff00';
+    ctx.beginPath(); ctx.moveTo(cx,cy);
+    ctx.arc(cx,cy,r*(1-da*0.5),sa,Math.PI*2-sa);
+    ctx.closePath(); ctx.fill(); return;
   }
 
-  const mouth = pacman.moving ? pacman.mouthAngle : 0.05;
+  const mouth=pacman.moving?pacman.mouthAngle:0.05;
+  ctx.fillStyle='#ffff00';
+  ctx.beginPath(); ctx.moveTo(cx,cy);
+  ctx.arc(cx,cy,r,angle+mouth,angle+Math.PI*2-mouth);
+  ctx.closePath(); ctx.fill();
 
-  ctx.fillStyle = '#ffff00';
-  ctx.beginPath();
-  ctx.moveTo(cx, cy);
-  ctx.arc(cx, cy, r, angle + mouth, angle + Math.PI * 2 - mouth);
-  ctx.closePath();
-  ctx.fill();
-
-  // Eye
-  const ex = cx + Math.cos(angle - Math.PI / 2.5) * r * 0.5;
-  const ey = cy + Math.sin(angle - Math.PI / 2.5) * r * 0.5;
-  ctx.fillStyle = '#000';
-  ctx.beginPath();
-  ctx.arc(ex, ey, r * 0.12, 0, Math.PI * 2);
-  ctx.fill();
+  const ex=cx+Math.cos(angle-Math.PI/2.5)*r*0.5;
+  const ey=cy+Math.sin(angle-Math.PI/2.5)*r*0.5;
+  ctx.fillStyle='#000';
+  ctx.beginPath(); ctx.arc(ex,ey,r*0.12,0,Math.PI*2); ctx.fill();
 }
 
 function drawGhosts() {
   ghosts.forEach(g => {
     if (!g.exited) return;
-    const gx = g.fromX + (g.x - g.fromX) * g.progress;
-    const gy = g.fromY + (g.y - g.fromY) * g.progress;
-    const cx = gx * CELL + CELL / 2;
-    const cy = gy * CELL + CELL / 2;
-    const r = CELL * 0.44;
+    const gx=g.fromX+(g.x-g.fromX)*g.progress;
+    const gy=g.fromY+(g.y-g.fromY)*g.progress;
+    const cx=gx*CELL+CELL/2, cy=gy*CELL+CELL/2, r=CELL*0.44;
+    if (g.eaten) { drawEyes(cx,cy,r,g.dir); return; }
 
-    if (g.eaten) {
-      // Draw eyes only
-      drawGhostEyes(cx, cy, r, g.dir);
-      return;
-    }
-
-    let color = g.color;
-    if (g.frightened) {
-      const blinking = frightTimer < 2000 && g.blinkPhase > 0.5;
-      color = blinking ? '#ffffff' : '#0000ff';
-    }
-
-    ctx.fillStyle = color;
-    // Ghost body
+    let color=g.color;
+    if (g.frightened) color=(frightTimer<2000&&g.blinkPhase>0.5)?'#fff':'#00f';
+    ctx.fillStyle=color;
     ctx.beginPath();
-    ctx.arc(cx, cy - r * 0.1, r, Math.PI, 0);
-    // Wavy bottom
-    const segments = 4;
-    const bx = cx - r;
-    const by = cy + r * 0.9;
-    ctx.lineTo(cx + r, by);
-    for (let i = 0; i < segments; i++) {
-      const x1 = cx + r - (i * 2 + 1) * (2 * r / segments / 2);
-      const x2 = cx + r - (i + 1) * (2 * r / segments);
-      ctx.quadraticCurveTo(x1, by + (i % 2 === 0 ? r * 0.35 : -r * 0.1), x2, by);
+    ctx.arc(cx,cy-r*0.1,r,Math.PI,0);
+    const by=cy+r*0.9; ctx.lineTo(cx+r,by);
+    for (let i=0;i<4;i++) {
+      const x1=cx+r-(i*2+1)*(r/4);
+      const x2=cx+r-(i+1)*(r/2);
+      ctx.quadraticCurveTo(x1,by+(i%2===0?r*0.35:-r*0.1),x2,by);
     }
-    ctx.closePath();
-    ctx.fill();
+    ctx.closePath(); ctx.fill();
 
-    if (!g.frightened) {
-      drawGhostEyes(cx, cy, r, g.dir);
-    } else {
-      // Scared face
-      ctx.fillStyle = '#ffb8ff';
-      ctx.fillRect(cx - r * 0.4, cy - r * 0.05, r * 0.15, r * 0.2);
-      ctx.fillRect(cx + r * 0.25, cy - r * 0.05, r * 0.15, r * 0.2);
-      ctx.beginPath();
-      ctx.strokeStyle = '#ffb8ff';
-      ctx.lineWidth = 1.5;
-      const mw = r * 0.6;
-      for (let i = 0; i < 5; i++) {
-        const wx = (cx - mw / 2) + i * (mw / 4);
-        const wy = cy + r * 0.3 + (i % 2 === 0 ? 0 : r * 0.15);
-        if (i === 0) ctx.moveTo(wx, wy);
-        else ctx.lineTo(wx, wy);
+    if (!g.frightened) { drawEyes(cx,cy,r,g.dir); }
+    else {
+      ctx.fillStyle='#ffb8ff';
+      ctx.fillRect(cx-r*0.4,cy-r*0.05,r*0.15,r*0.2);
+      ctx.fillRect(cx+r*0.25,cy-r*0.05,r*0.15,r*0.2);
+      ctx.beginPath(); ctx.strokeStyle='#ffb8ff'; ctx.lineWidth=1.5;
+      for (let i=0;i<5;i++) {
+        const wx=(cx-r*0.3)+i*(r*0.15);
+        const wy=cy+r*0.3+(i%2===0?0:r*0.15);
+        i===0?ctx.moveTo(wx,wy):ctx.lineTo(wx,wy);
       }
       ctx.stroke();
     }
   });
 }
 
-function drawGhostEyes(cx, cy, r, dir) {
-  const offX = dir.x * r * 0.15;
-  const offY = dir.y * r * 0.15;
-  [-1, 1].forEach(side => {
-    ctx.fillStyle = '#fff';
+function drawEyes(cx,cy,r,dir) {
+  const ox=dir.x*r*0.15, oy=dir.y*r*0.15;
+  [-1,1].forEach(s => {
+    ctx.fillStyle='#fff';
     ctx.beginPath();
-    ctx.ellipse(cx + side * r * 0.28, cy - r * 0.1, r * 0.2, r * 0.22, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx+s*r*0.28,cy-r*0.1,r*0.2,r*0.22,0,0,Math.PI*2);
     ctx.fill();
-    ctx.fillStyle = '#00f';
+    ctx.fillStyle='#00f';
     ctx.beginPath();
-    ctx.arc(cx + side * r * 0.28 + offX, cy - r * 0.1 + offY, r * 0.1, 0, Math.PI * 2);
+    ctx.arc(cx+s*r*0.28+ox,cy-r*0.1+oy,r*0.1,0,Math.PI*2);
     ctx.fill();
   });
 }
 
-// --- Touch / Swipe ---
-let touchStart = null;
+// ===== VIRTUAL JOYSTICK =====
+const JOY_R      = 60;
+const JOY_KNOB_R = 25;
+const JOY_MARGIN = 16;
+const JOY_DEAD   = 8;
+const BTN_H      = 34; // buttons + gap above ring
 
-document.addEventListener('touchstart', e => {
-  if (!gameRunning) return;
-  e.preventDefault();
-  const t = e.touches[0];
-  touchStart = { x: t.clientX, y: t.clientY };
-}, { passive: false });
+let joyFree = false;
+let joyCX = 0, joyCY = 0;
+let joyTid = null, joyDragTid = null;
+let joyDragOX = 0, joyDragOY = 0;
 
-document.addEventListener('touchend', e => {
-  if (!gameRunning) return;
-  e.preventDefault();
-  if (!touchStart) return;
-  const t = e.changedTouches[0];
-  const dx = t.clientX - touchStart.x;
-  const dy = t.clientY - touchStart.y;
-  const adx = Math.abs(dx), ady = Math.abs(dy);
-  if (adx < 10 && ady < 10) return;
-  if (adx > ady) {
-    pacman.nextDir = { x: dx > 0 ? 1 : -1, y: 0 };
-  } else {
-    pacman.nextDir = { x: 0, y: dy > 0 ? 1 : -1 };
+const joyUI    = document.getElementById('joy-ui');
+const joyOuter = document.getElementById('joy-outer');
+const joyInner = document.getElementById('joy-inner');
+const jpbL     = document.getElementById('jpb-l');
+const jpbF     = document.getElementById('jpb-f');
+const jpbR     = document.getElementById('jpb-r');
+const jdN      = joyOuter.querySelector('.jd-n');
+const jdS      = joyOuter.querySelector('.jd-s');
+const jdE      = joyOuter.querySelector('.jd-e');
+const jdW      = joyOuter.querySelector('.jd-w');
+const jDirEls  = { n:jdN, s:jdS, e:jdE, w:jdW };
+
+function joySetPos() {
+  joyUI.style.left = (joyCX - JOY_R) + 'px';
+  joyUI.style.top  = (joyCY - JOY_R - BTN_H) + 'px';
+}
+
+function joySetKnob(dx, dy) {
+  joyInner.style.left = (JOY_R + dx - JOY_KNOB_R) + 'px';
+  joyInner.style.top  = (JOY_R + dy - JOY_KNOB_R) + 'px';
+}
+
+function joyClamp() {
+  const minX = JOY_R + JOY_MARGIN;
+  const minY = JOY_R + BTN_H + JOY_MARGIN;
+  joyCX = Math.max(minX, Math.min(window.innerWidth  - minX, joyCX));
+  joyCY = Math.max(minY, Math.min(window.innerHeight - JOY_R - JOY_MARGIN, joyCY));
+}
+
+function joyPreset(side) {
+  joyFree = false;
+  const base = JOY_R + JOY_MARGIN;
+  joyCX = side === 'l' ? base : window.innerWidth - base;
+  joyCY = window.innerHeight - JOY_R - JOY_MARGIN;
+  joyClamp();
+  joySetPos();
+  joySetKnob(0, 0);
+  joyOuter.classList.remove('free');
+  joyInner.classList.remove('free');
+  jpbL.classList.toggle('active', side === 'l');
+  jpbR.classList.toggle('active', side === 'r');
+  jpbF.classList.remove('active');
+}
+
+function joyToggleFree() {
+  joyFree = !joyFree;
+  joyOuter.classList.toggle('free', joyFree);
+  joyInner.classList.toggle('free', joyFree);
+  jpbF.classList.toggle('active', joyFree);
+  if (joyFree) {
+    jpbL.classList.remove('active');
+    jpbR.classList.remove('active');
+    joySetKnob(0, 0);
+    joyHighlightDir(null);
   }
-  touchStart = null;
+}
+
+function joyHighlightDir(d) {
+  for (const [k, el] of Object.entries(jDirEls))
+    el.classList.toggle('lit', k === d);
+}
+
+function calcDir(dx, dy) {
+  if (Math.hypot(dx, dy) < JOY_DEAD) return null;
+  const a = Math.atan2(dy, dx), P4 = Math.PI / 4;
+  if (a >= -P4   && a <  P4)   return 'e';
+  if (a >=  P4   && a <  3*P4) return 's';
+  if (a >= -3*P4 && a < -P4)   return 'n';
+  return 'w';
+}
+
+function applyDir(d) {
+  if (!d) return;
+  const m = { e:{x:1,y:0}, w:{x:-1,y:0}, s:{x:0,y:1}, n:{x:0,y:-1} };
+  pacman.nextDir = m[d];
+}
+
+function clampKnob(dx, dy) {
+  const maxR = JOY_R - JOY_KNOB_R;
+  const dist = Math.hypot(dx, dy);
+  if (dist <= maxR) return { x:dx, y:dy };
+  return { x: dx/dist*maxR, y: dy/dist*maxR };
+}
+
+joyOuter.addEventListener('touchstart', e => {
+  e.preventDefault();
+  e.stopPropagation();
+  const t = e.changedTouches[0];
+
+  if (joyFree && joyDragTid === null) {
+    joyDragTid = t.identifier;
+    joyDragOX  = t.clientX - joyCX;
+    joyDragOY  = t.clientY - joyCY;
+    return;
+  }
+  if (!joyFree && joyTid === null) {
+    joyTid = t.identifier;
+    const dx = t.clientX - joyCX, dy = t.clientY - joyCY;
+    const c = clampKnob(dx, dy);
+    joySetKnob(c.x, c.y);
+    const d = calcDir(dx, dy);
+    joyHighlightDir(d);
+    applyDir(d);
+  }
 }, { passive: false });
 
-// Arrow keys for desktop
-document.addEventListener('keydown', e => {
-  if (!gameRunning) return;
-  const map2 = {
-    ArrowRight: { x: 1, y: 0 }, ArrowLeft: { x: -1, y: 0 },
-    ArrowDown: { x: 0, y: 1 }, ArrowUp: { x: 0, y: -1 },
-    d: { x: 1, y: 0 }, a: { x: -1, y: 0 },
-    s: { x: 0, y: 1 }, w: { x: 0, y: -1 },
-  };
-  if (map2[e.key]) { pacman.nextDir = map2[e.key]; e.preventDefault(); }
+document.addEventListener('touchmove', e => {
+  for (const t of e.changedTouches) {
+    if (t.identifier === joyTid) {
+      e.preventDefault();
+      const dx = t.clientX - joyCX, dy = t.clientY - joyCY;
+      const c = clampKnob(dx, dy);
+      joySetKnob(c.x, c.y);
+      const d = calcDir(dx, dy);
+      joyHighlightDir(d);
+      applyDir(d);
+    }
+    if (t.identifier === joyDragTid) {
+      e.preventDefault();
+      joyCX = t.clientX - joyDragOX;
+      joyCY = t.clientY - joyDragOY;
+      joyClamp();
+      joySetPos();
+    }
+  }
+}, { passive: false });
+
+function joyRelease(changedTouches) {
+  for (const t of changedTouches) {
+    if (t.identifier === joyTid) {
+      joyTid = null;
+      joySetKnob(0, 0);
+      joyHighlightDir(null);
+    }
+    if (t.identifier === joyDragTid) {
+      joyDragTid = null;
+    }
+  }
+}
+document.addEventListener('touchend',    e => joyRelease(e.changedTouches));
+document.addEventListener('touchcancel', e => joyRelease(e.changedTouches));
+
+jpbL.addEventListener('click', () => joyPreset('l'));
+jpbR.addEventListener('click', () => joyPreset('r'));
+jpbF.addEventListener('click', joyToggleFree);
+
+window.addEventListener('resize', () => {
+  if (!joyFree) {
+    if (jpbL.classList.contains('active')) joyPreset('l');
+    else if (jpbR.classList.contains('active')) joyPreset('r');
+    else { joyClamp(); joySetPos(); }
+  } else { joyClamp(); joySetPos(); }
 });
 
+// ===== KEYBOARD (desktop) =====
+document.addEventListener('keydown', e => {
+  if (!gameRunning) return;
+  const m = {
+    ArrowRight:{x:1,y:0}, ArrowLeft:{x:-1,y:0},
+    ArrowDown:{x:0,y:1},  ArrowUp:{x:0,y:-1},
+    d:{x:1,y:0}, a:{x:-1,y:0}, s:{x:0,y:1}, w:{x:0,y:-1},
+  };
+  if (m[e.key]) { pacman.nextDir = m[e.key]; e.preventDefault(); }
+});
+
+// ===== OVERLAY =====
 function showOverlay(title, subtitle, btnText) {
   gameRunning = false;
   if (animFrame) cancelAnimationFrame(animFrame);
+  joyUI.classList.remove('visible');
   overlay.innerHTML = `
     <h1>${title}</h1>
     <p>${subtitle}</p>
-    <p class="sub">Swipe to move &bull; Eat all dots</p>
-    <button id="startBtn" style="margin-top:28px;padding:14px 40px;font-size:22px;background:#ffff00;color:#000;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-weight:bold;letter-spacing:2px;">
+    <p class="sub">Use the joystick to move</p>
+    <button id="startBtn" style="margin-top:28px;padding:14px 40px;font-size:22px;
+      background:#ffff00;color:#000;border:none;border-radius:8px;cursor:pointer;
+      font-family:inherit;font-weight:bold;letter-spacing:2px;touch-action:manipulation;">
       ${btnText}
-    </button>
-  `;
+    </button>`;
   overlay.style.display = 'flex';
   document.getElementById('startBtn').addEventListener('click', startGame);
 }
@@ -693,6 +768,9 @@ function showOverlay(title, subtitle, btnText) {
 function startGame() {
   score = 0;
   overlay.style.display = 'none';
+  joyUI.classList.add('visible');
+  joyPreset('l');
+  jpbL.classList.add('active');
   initGame();
   gameRunning = true;
   lastTime = performance.now();
@@ -701,7 +779,6 @@ function startGame() {
 
 startBtn.addEventListener('click', startGame);
 
-// Initial draw
 initGame();
 draw();
 </script>
